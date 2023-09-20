@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description : > 
+    " My first template for cloudFormation "
+Resources: #required option
+  Homewrk1EC2Instance: #Logicalname    
+    Type: AWS::EC2::Instance
+    Properties: 
+      AvailabilityZone: "us-west-1b"
+      SubnetId: "subnet-0b840bc5914506dff"
+      InstanceType: "t2.micro"
+      ImageId: "ami-0f5e8a042c8bfcd5e"
+      KeyName: "NCaliforniaKeypair"
+      Tags: 
+       - Key: "Name" #tag
+         Value: "Joseph Mbatchou" # My full Name
+      SecurityGroupIds: 
+         - sg-0600a44f45ef4baf2
+      
+
+  

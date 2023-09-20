@@ -1,0 +1,68 @@
+---
+# This template will be my main one. It will be use for all my testing template. 
+AWSTemplateFormatVersion: '2010-09-09'
+Description : > 
+    " My first template for cloudFormation "
+Parameters:
+  InstanceType: # Using SSM parameter for the instance type 
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default:  "Dev-EC2-InstanceType"
+    Description: Enter type base of the allowed value listed 
+  KeyPair: 
+    Description: Amazon EC2 KeyPair
+    Type: "AWS::EC2::KeyPair::KeyName"
+  SubnetId: 
+    Description: Public Subnet IDs only
+    Type: String
+    Default: "subnet-0b840bc5914506dff"
+  SecurityGroupIds:
+    Description: All security group in my Region
+    Type: "List<AWS::EC2::SecurityGroup::Id>"
+Mappings: 
+  RegionMap: 
+    us-west-1: 
+      "HVM64": "ami-0f5e8a042c8bfcd5e"
+    us-east-1: 
+      "HVM64": "ami-0b0dcb5067f052a63"
+
+Resources: #Section required option
+  Homework1EC2Instance: #Logicalname    
+    Type: AWS::EC2::Instance
+    Properties: 
+      AvailabilityZone: "us-west-1b"
+      InstanceType: !Ref InstanceType
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", "HVM64"]  #use Pseudo parameter for the region
+      KeyName: !Ref KeyPair
+      SubnetId: !Ref SubnetId
+      Tags: 
+       - Key: "Name" #tag
+         Value: "Joseph Mbatchou" # My full Name
+      SecurityGroupIds: !Ref SecurityGroupIds
+      NetworkInterfaces: 
+       - AssociatePublicIpAddress: "true"
+         DeviceIndex: "0"
+
+
+
+  MyEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MyEC2Instance
+  SecurityGroupId: 
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: open port 80 to the internet and port 22 to my IP address
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIp
+      VpcId: !Ref MyVPC
+Outputs:
+  WebSecurityGroupName:
+    Description: display the Security Group Name of my EC2 Instance
+    Value: !Ref WebSecurityGroup

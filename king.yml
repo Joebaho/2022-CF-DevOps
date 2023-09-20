@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  LatestAmiId:
+    Description: Region specific image from the Parameter Store
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceType:
+    Description: Amazon EC2 instance type for the instances
+    Type: String
+    AllowedValues:
+      - t2.micro
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Default: t2.micro
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: A list of subnets for the Auto Scaling group  
+
+
+
+Resources:
+  myLaunchTemplate: # Declaring my lauchTemplate with user data and an IAM Role
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateName: !Sub ${AWS::StackName}-launch-template
+      LaunchTemplateData:
+        ImageId: !Ref LatestAmiId
+        InstanceType: !Ref InstanceType
+        SecurityGroups:
+        - Ref! myNewEC2SecurityGroup
+        - myExistingEC2SecurityGroup
+        UserData:
+          Fn::Base64:!Sub |
+            #!/bin/bash
+            cd /tmp
+            sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            sudo systemctl enable amazon-ssm-agent
+            sudo systemctl start amazon-ssm-agent
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+          - Key: environment
+            Value: development
+        - ResourceType: volume
+          Tags:
+          - Key: environment
+            Value: development
+  myInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: InstanceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Principal:
+            Service:
+            - 'ec2.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/myCustomerManagedPolicy'
+  myInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: '/'
+      Roles:
+      - !Ref myInstanceRole
+  
+        
+
+# Assigning an ASG for the above LaunchTemplate
+  myASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MaxSize: '4'
+      MinSize: '1'
+      DesiredCapacity: '2'
+      VPCZoneIdentifier: !Ref Subnets
+      MetricsCollection: 
+        - Granularity: 5Minute
+          Metrics: 
+            - GroupMinSize
+            - GroupMaxSize
+      Tags:
+        - Key: Environment
+          Value: Production
+          PropagateAtLaunch: true
+        - Key: Purpose
+          Value: WebServerGroup
+          PropagateAtLaunch: false  
+
+  # Assigning the CloudWatch alarm
+  CPUAlarm: # Declaring a step scaling policy with a CloudWatch alarm and SNS Notification
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Scale out if CPU > 70% for 2 minutes'
+      AlarmActions:
+      - Ref: "logical name of an AWS::SNS::Topic resource" # ref SNS topic
+      - Ref: "ASGScalingPolicyHigh" # ref the ASG that will take action
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '2'
+      Threshold: '70'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: "logical name of ASG"
+
+# assingining the SNS resource 
+  MySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: "add valid email address"
+        Protocol: email

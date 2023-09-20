@@ -1,0 +1,84 @@
+---
+# This template will be my main one. It will be use for all my testing template. 
+AWSTemplateFormatVersion: '2010-09-09'
+Description : > 
+    " My first template for cloudFormation "
+Parameters:
+  KeyPair: 
+    Description: Amazon EC2 KeyPair
+    Type: "AWS::EC2::KeyPair::KeyName"
+  SubnetId: 
+    Description: Public Subnet IDs only
+    Type: "AWS::EC2::Subnet::Id"
+  VpcId:
+    Description: Name the VPC present in the region
+    Type: "AWS::EC2::VPC::Id"  
+  MyIP:
+    Description: My IP address of my computer
+    Type: 'AWS::SSM::Parameter::Value<String>' # Parameter store 
+    Default: IPperso
+
+  ImageId:
+    Description: List of image Id in the region
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>" 
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
+    AllowedValues: 
+     - /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs
+     - /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+     - /aws/service/ami-amazon-linux-latest/amzn2-ami-minimal-hvm-x86_64-ebs
+     - /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-ebs
+     - /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-gp2
+     - /aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-s3
+     - /aws/service/ami-amazon-linux-latest/amzn-ami-minimal-hvm-x86_64-ebs
+     - /aws/service/ami-amazon-linux-latest/amzn-ami-minimal-hvm-x86_64-s3
+
+Mappings: 
+  InstanceType: 
+    Type1: 
+      Name: t2.micro
+    Type2: 
+      Name: t3.micro
+    Type3: 
+      Name: m1.small
+    Type4:
+      Name: m1.large 
+
+Resources: #Section required option
+  MyEC2Instance: #Logicalname    
+    Type: AWS::EC2::Instance
+    Properties: 
+      AvailabilityZone: us-west-1b
+      InstanceType: !FindInMap ["InstanceType", "Type1", "Name"]  #use Pseudo parameter for the region
+      KeyName: !Ref KeyPair
+      SubnetId: !Ref SubnetId
+      ImageId: !Ref ImageId
+      Tags: 
+       - Key: "Name" #tag
+         Value: "Joseph Mbatchou" # My full Name
+      SecurityGroupIds: 
+         - !Ref SecurityGroupIds
+     
+  MyEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MyEC2Instance
+  SecurityGroupIds: 
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+       GroupDescription: open port 80 to the internet and port 22 to my IP address
+       SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+       VpcId: !Ref VpcId
+# Outputs:
+#   SecurityGroupIds:
+#     Description: Display securitygroupID of the EC2 MyEC2Instance
+#     Value: !GetAtt MyEC2Instance.SecurityGroupIds
+#     Export: 
+#      Name: !Sub '${AWS::StackName}-MyEC2Instance'  

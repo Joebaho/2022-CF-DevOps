@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >- 
+  This template will help us create a S3 Bucket. 
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: baho-s3bucket-static
+      VersioningConfiguration:
+        Status: Enabled  
+      AccessControl: PublicRead      # provide billing access to all aws resources 
+      

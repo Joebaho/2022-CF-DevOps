@@ -1,0 +1,13 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description : > 
+    " My first template for cloudFormation "
+Resources: #required option
+  Homework1EC2Instance: #Logicalname    
+    Type: AWS::EC2::Instance
+    Properties: 
+      InstanceType: "t2.micro"
+      ImageId: "ami-094125af156557ca2"
+      KeyName: "NCaliforniaKeypair"
+      Tags: 
+       - Key: "Name" #tag 
+         

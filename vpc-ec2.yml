@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  TEST Sample Template VPC with public and private subnets, Internetgateway and public route table.
+  Sample template that creates a VPC with DNS and public IPs enabled. An EC2 instance also launched to 
+  completed all my testing stuff. 
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "VPC CIDR"
+        Parameters:
+          - VpcCIDR
+      - 
+        Label:
+          default: "SUBNET CIDR"
+        Parameters:
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR 
+          - PrivateSubnet1CIDR 
+          - PrivateSubnet2CIDR
+          
+      -
+        Label:
+          default: "SSH IP"
+        Parameters:
+          - SSHLocationIP 
+         
+Parameters:
+  VpcCIDR:
+    Default: 192.168.0.0/20
+    Description: Please enter the IP range of the VPC
+    Type: String
+  PublicSubnet1CIDR:
+    Default: 192.168.1.0/24
+    Description: Please enter the IP range of the VPCpublic subnet 1
+    Type: String
+  PublicSubnet2CIDR:
+    Default: 192.168.2.0/24
+    Description: Please enter the IP range of the public subnet 2 
+    Type: String
+  PrivateSubnet1CIDR:
+    Default: 192.168.8.0/24
+    Description: Please enter the IP range of the private subnet 1
+    Type: String
+  PrivateSubnet2CIDR:
+    Default: 192.168.9.0/24
+    Description: Please enter the IP range of the private subnet 2 
+    Type: String
+   
+  SSHLocationIP:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})" # IP Address
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  InstanceType:
+    Description: EC2 instance type.
+    Type: String
+    Default: t2.micro
+  KeyName:
+    Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
+    Type: AWS::EC2::KeyPair::KeyName
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  
+
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Name 
+          Value: TEST-VPC
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '']      #AZ1
+      MapPublicIpOnLaunch: true
+      CidrBlock: !Ref PublicSubnet1CIDR
+      Tags:
+       - Key: Name 
+         Value: TEST-Pub-Subnet1
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '']      #AZ2
+      MapPublicIpOnLaunch: true
+      CidrBlock: !Ref PublicSubnet2CIDR
+      Tags:
+        - Key: Name 
+          Value: TEST-Pub-Subnet2       
+          
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '']      #AZ1
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      Tags:
+        - Key: Name 
+          Value: TEST-Priv-Subnet1
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '']      #AZ1
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Name 
+          Value: TEST-Priv-Subnet2 
+     
+
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: NAS-IGW
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: TEST-Pub-RT 
+  PublicRoute1:
+    Type: 'AWS::EC2::Route'
+    DependsOn: VPCGatewayAttachment 
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+ 
+
+
+  WebServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable HTTP/HTTPS access via port 80/443 to the loadbalancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref SSHSecurityGroup
+      Tags:
+        - Key: Name 
+          Value: TEST-WebServer-SG
+   
+  SSHSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: SSH security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocationIP
+      Tags:
+        - Key: Name 
+          Value: TEST-SSH-SG  
+  WebServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType # Nothing is hardcoded
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCID'
+  PublicSubnet1:
+    Description: The first public subnet ID to use for public web servers
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1' #replacing a string
+  PublicSubnet2:
+    Description: The second public subnet ID to use for public web servers
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2'
+  PrivateSubnet1:
+    Description: The first private subnet ID to use for database
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet1'
+  PrivateSubnet2:
+    Description: The second private subnet ID to use for database
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet2'
+  
+
+  WebServerSecurityGroup:
+    Description: The security group ID to use for public web servers
+    Value: !Ref WebServerSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-WebServerSecurityGroup'
+  
+  SSHSecurityGroup:
+    Description: The security group ID to use for public web servers
+    Value: !Ref SSHSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SSHSecurityGroup'
